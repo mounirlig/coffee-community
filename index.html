@@ -28,15 +28,6 @@
             <p class="sync-status" id="syncStatus">Stockage local</p>
           </div>
         </div>
-        <div class="topbar-actions">
-          <button class="ghost-button" id="exportData" type="button" title="Exporter les données">
-            Exporter
-          </button>
-          <label class="ghost-button file-button" title="Importer des données">
-            Importer
-            <input id="importData" type="file" accept="application/json" />
-          </label>
-        </div>
       </header>
 
       <section class="account-grid" aria-label="Equipe">
@@ -174,6 +165,16 @@
         </div>
         <div class="ledger" id="ledger"></div>
       </section>
+
+      <footer class="data-actions" aria-label="Import et export des données">
+        <button class="ghost-button" id="exportData" type="button" title="Exporter les données">
+          Exporter
+        </button>
+        <label class="ghost-button file-button" title="Importer des données">
+          Importer
+          <input id="importData" type="file" accept="application/json" />
+        </label>
+      </footer>
     </main>
 
     <template id="emptyStateTemplate">

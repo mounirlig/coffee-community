@@ -182,7 +182,7 @@ h2 {
   font-size: 1.05rem;
 }
 
-.topbar-actions,
+.data-actions,
 .tabs,
 .form-row,
 .inline-form {
@@ -203,9 +203,16 @@ form button {
 .ghost-button {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   background: var(--surface);
   border: 1px solid var(--border);
   color: var(--text);
+}
+
+.data-actions {
+  justify-content: flex-end;
+  margin-top: 18px;
+  padding-top: 18px;
 }
 
 .file-button input {
@@ -314,6 +321,18 @@ label {
   color: var(--muted);
   font-size: 0.82rem;
   font-weight: 800;
+}
+
+.data-actions .ghost-button {
+  display: inline-flex;
+  width: 112px;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  color: var(--text);
+  font-size: 0.92rem;
+  font-weight: 750;
+  line-height: 1;
 }
 
 input,
@@ -457,9 +476,13 @@ select:focus {
   .summary-grid,
   .form-row,
   .inline-form,
-  .topbar-actions {
+  .data-actions {
     display: grid;
     grid-template-columns: 1fr;
+  }
+
+  .data-actions .ghost-button {
+    width: 100%;
   }
 
   .brand-block {
