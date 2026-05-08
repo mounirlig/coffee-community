@@ -18,6 +18,10 @@ create table if not exists public.coffee_entries (
   created_at timestamptz not null default now()
 );
 
+create index if not exists coffee_entries_member_id_idx on public.coffee_entries(member_id);
+create index if not exists coffee_entries_buyer_id_idx on public.coffee_entries(buyer_id);
+create index if not exists coffee_entries_entry_date_created_at_idx on public.coffee_entries(entry_date desc, created_at desc);
+
 alter table public.coffee_members enable row level security;
 alter table public.coffee_entries enable row level security;
 

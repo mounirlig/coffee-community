@@ -2,7 +2,7 @@
 
 Application web statique pour suivre les contributions financieres d'une equipe aux achats de dosettes de cafe.
 
-Les donnees sont synchronisees avec Supabase quand `supabase-config.js` contient l'URL du projet et la cle publique `anon`. Si Supabase n'est pas configure, l'application utilise le `localStorage` du navigateur.
+Les donnees sont synchronisees avec Supabase. Si Supabase n'est pas disponible, l'application utilise le `localStorage` du navigateur comme fallback.
 
 ## Lancer en local
 
@@ -23,14 +23,16 @@ Ce projet est une app statique sans dependances ni build.
 
 Le fichier `vercel.json` configure les URLs propres, les headers de base et le fallback vers `index.html`.
 
-## Configurer Supabase
+## Supabase
 
-1. Creer un projet Supabase.
-2. Ouvrir le SQL Editor.
-3. Copier/coller le contenu de `supabase-schema.sql`, puis executer le script.
-4. Ouvrir Project Settings > API.
-5. Copier `Project URL` et la cle publique `anon`.
-6. Remplir `supabase-config.js` :
+Le projet est branche sur Supabase avec le fichier `supabase-config.js`.
+
+Le schema SQL applique est conserve dans `supabase-schema.sql`. Il cree :
+
+- `coffee_members`
+- `coffee_entries`
+
+Pour changer de projet Supabase, ouvrir Project Settings > API dans Supabase, puis remplacer `url` et `anonKey` dans `supabase-config.js` :
 
 ```js
 window.COFFEE_COMMUNITY_SUPABASE = {
@@ -38,7 +40,5 @@ window.COFFEE_COMMUNITY_SUPABASE = {
   anonKey: "ey...",
 };
 ```
-
-7. Commit, push, puis redeployer sur Vercel.
 
 Note: cette configuration donne un acces lecture/ecriture public a la base via la cle `anon`, ce qui convient pour une petite equipe de confiance. Pour une app publique, il faudra ajouter une authentification et des politiques RLS plus strictes.
