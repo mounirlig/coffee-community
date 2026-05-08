@@ -2,7 +2,7 @@
 
 Application web statique pour suivre les contributions financieres d'une equipe aux achats de dosettes de cafe.
 
-Les donnees sont synchronisees avec Supabase et isolees par equipe. Les utilisateurs se connectent par lien email, creent ou choisissent une equipe, ou rejoignent une equipe existante avec un code d'invitation.
+Les donnees sont synchronisees avec Supabase et separent les equipes par code d'invitation. Il n'y a pas d'authentification email : chaque personne choisit simplement un nom d'utilisateur local, stocke dans son navigateur.
 
 ## Lancer en local
 
@@ -34,9 +34,9 @@ Le schema SQL applique est conserve dans `supabase-schema.sql`. Il cree :
 - `coffee_members`
 - `coffee_entries`
 
-Les policies RLS s'appuient sur `auth.uid()` et sur `coffee_team_memberships` pour limiter les lectures/ecritures aux membres de chaque equipe.
+L'application utilise des fonctions RPC publiques `security definer` pour creer/rejoindre une equipe et manipuler ses membres et mouvements sans compte Supabase Auth. Les tables gardent RLS active pour bloquer l'acces direct depuis le client.
 
-Chaque equipe possede un `invite_code`. Un utilisateur connecte peut rejoindre l'equipe via la fonction RPC `join_coffee_team`, puis les policies RLS lui donnent acces uniquement a cette equipe.
+Chaque equipe possede un `invite_code`. Une personne peut rejoindre une equipe avec ce code, puis le navigateur garde la liste des equipes connues en `localStorage`.
 
 Pour changer de projet Supabase, ouvrir Project Settings > API dans Supabase, puis remplacer `url` et `anonKey` dans `supabase-config.js` :
 
@@ -47,15 +47,4 @@ window.COFFEE_COMMUNITY_SUPABASE = {
 };
 ```
 
-Note: la cle publique Supabase reste visible cote client, ce qui est normal. La securite repose sur l'authentification Supabase et les policies RLS par equipe.
-
-### Redirections Auth
-
-Dans Supabase, ouvrir Authentication > URL Configuration et configurer :
-
-- Site URL: `https://coffee-community-eight.vercel.app`
-- Redirect URLs:
-  - `https://coffee-community-eight.vercel.app/**`
-  - `http://localhost:4173/**`
-
-Les emails de connexion doivent rediriger vers la production. Si Supabase garde `http://localhost:3000`, verifier aussi que le template email utilise bien `{{ .ConfirmationURL }}` ou `{{ .RedirectTo }}` et pas une URL localhost codee en dur.
+Note: la cle publique Supabase reste visible cote client, ce qui est normal. Comme il n'y a plus de verification email, ce modele convient a un usage interne simple et base sur la confiance. Toute personne qui possede le code d'une equipe peut la rejoindre et agir dessus. Pour une isolation forte par utilisateur, il faudra remettre une authentification Supabase et des policies RLS par membership verifie.

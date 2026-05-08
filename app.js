@@ -1,11 +1,12 @@
-const STORAGE_KEY = "coffee-community-data-v5";
+const STORAGE_KEY = "coffee-community-data-v6";
 const TEAM_STORAGE_KEY = "coffee-community-active-team";
-const PRODUCTION_URL = "https://coffee-community-eight.vercel.app/";
+const TEAMS_STORAGE_KEY = "coffee-community-known-teams";
+const USERNAME_STORAGE_KEY = "coffee-community-username";
 const SUPABASE_CONFIG = window.COFFEE_COMMUNITY_SUPABASE || {};
 
 const state = {
-  session: null,
-  teams: [],
+  username: localStorage.getItem(USERNAME_STORAGE_KEY) || "",
+  teams: loadKnownTeams(),
   currentTeamId: localStorage.getItem(TEAM_STORAGE_KEY) || "",
   members: [],
   entries: [],
@@ -27,13 +28,12 @@ const elements = {
   cashBalance: document.querySelector("#cashBalance"),
   memberCount: document.querySelector("#memberCount"),
   syncStatus: document.querySelector("#syncStatus"),
-  loginForm: document.querySelector("#loginForm"),
-  loginEmail: document.querySelector("#loginEmail"),
-  sessionPanel: document.querySelector("#sessionPanel"),
-  sessionEmail: document.querySelector("#sessionEmail"),
-  signOutButton: document.querySelector("#signOutButton"),
+  userForm: document.querySelector("#userForm"),
+  usernameInput: document.querySelector("#usernameInput"),
+  userPanel: document.querySelector("#userPanel"),
+  usernameDisplay: document.querySelector("#usernameDisplay"),
+  changeUserButton: document.querySelector("#changeUserButton"),
   authMessage: document.querySelector("#authMessage"),
-  teamPanel: document.querySelector("#teamPanel"),
   teamForm: document.querySelector("#teamForm"),
   teamName: document.querySelector("#teamName"),
   joinTeamForm: document.querySelector("#joinTeamForm"),
@@ -64,20 +64,26 @@ const today = new Date().toISOString().slice(0, 10);
 elements.contributionDate.value = today;
 elements.purchaseDate.value = today;
 
-elements.loginForm.addEventListener("submit", async (event) => {
+elements.userForm.addEventListener("submit", async (event) => {
   event.preventDefault();
-  await signIn(elements.loginEmail.value.trim());
+  const username = elements.usernameInput.value.trim();
+  if (!username) return;
+
+  state.username = username;
+  localStorage.setItem(USERNAME_STORAGE_KEY, username);
+  render();
 });
 
-elements.signOutButton.addEventListener("click", async () => {
-  if (!usingSupabase) return;
-  await supabaseClient.auth.signOut();
+elements.changeUserButton.addEventListener("click", () => {
+  state.username = "";
+  localStorage.removeItem(USERNAME_STORAGE_KEY);
+  render();
 });
 
 elements.teamForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const name = elements.teamName.value.trim();
-  if (!name) return;
+  if (!name || !state.username) return;
 
   await createTeam(name);
   elements.teamName.value = "";
@@ -86,7 +92,7 @@ elements.teamForm.addEventListener("submit", async (event) => {
 elements.joinTeamForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const code = elements.teamCode.value.trim();
-  if (!code) return;
+  if (!code || !state.username) return;
 
   await joinTeam(code);
   elements.teamCode.value = "";
@@ -213,8 +219,8 @@ elements.importData.addEventListener("change", async (event) => {
 });
 
 window.addEventListener("focus", () => {
-  if (usingSupabase && state.session) {
-    loadTeamsAndData();
+  if (usingSupabase && state.currentTeamId) {
+    loadRemoteData();
   }
 });
 
@@ -229,30 +235,13 @@ async function init() {
     return;
   }
 
-  setSyncStatus("remote", "Connexion Supabase");
-  const { data, error } = await supabaseClient.auth.getSession();
-  if (error) {
-    console.error(error);
-    setSyncStatus("error", "Erreur session Supabase");
+  setSyncStatus("remote", "Supabase connecté");
+  if (state.currentTeamId && !state.teams.some((team) => team.id === state.currentTeamId)) {
+    await restoreActiveTeam();
   }
-
-  state.session = data?.session || null;
-  supabaseClient.auth.onAuthStateChange(async (_event, session) => {
-    state.session = session;
-    if (!session) {
-      state.teams = [];
-      state.currentTeamId = "";
-      state.members = [];
-      state.entries = [];
-      localStorage.removeItem(TEAM_STORAGE_KEY);
-      unsubscribeFromRemoteChanges();
-      render();
-      return;
-    }
-    await loadTeamsAndData();
-  });
-
-  await loadTeamsAndData();
+  await loadRemoteData();
+  subscribeToRemoteChanges();
+  render();
 }
 
 function createSupabaseClient() {
@@ -262,85 +251,29 @@ function createSupabaseClient() {
 
   return window.supabase.createClient(url, anonKey, {
     auth: {
-      persistSession: true,
-      autoRefreshToken: true,
-      detectSessionInUrl: true,
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false,
     },
   });
 }
 
-async function signIn(email) {
-  if (!email || !usingSupabase) return;
-
-  const { error } = await supabaseClient.auth.signInWithOtp({
-    email,
-    options: {
-      emailRedirectTo: getAuthRedirectUrl(),
-    },
+async function restoreActiveTeam() {
+  const { data, error } = await supabaseClient.rpc("get_coffee_team_public", {
+    p_team_id: state.currentTeamId,
   });
 
-  if (error) {
-    console.error(error);
-    elements.authMessage.textContent = `Impossible d'envoyer le lien: ${error.message}`;
-    return;
-  }
-
-  elements.authMessage.textContent = "Lien envoyé. Vérifie ta boîte mail.";
-}
-
-function getAuthRedirectUrl() {
-  if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
-    return window.location.origin;
-  }
-
-  return PRODUCTION_URL;
-}
-
-async function loadTeamsAndData() {
-  renderAuth();
-
-  if (!usingSupabase) {
-    render();
-    return;
-  }
-
-  if (!state.session) {
-    setSyncStatus("local", "Connecte-toi pour synchroniser");
-    render();
-    return;
-  }
-
-  await loadTeams();
-  await loadRemoteData();
-  subscribeToRemoteChanges();
-}
-
-async function loadTeams() {
-  const { data, error } = await supabaseClient
-    .from("coffee_teams")
-    .select("id, name, invite_code, created_at")
-    .order("name", { ascending: true });
-
-  if (error) {
-    console.error(error);
-    setSyncStatus("error", "Erreur chargement équipes");
-    return;
-  }
-
-  state.teams = data.map(fromRemoteTeam);
-  if (!state.teams.some((team) => team.id === state.currentTeamId)) {
-    state.currentTeamId = state.teams[0]?.id || "";
-  }
-
-  if (state.currentTeamId) {
-    localStorage.setItem(TEAM_STORAGE_KEY, state.currentTeamId);
-  } else {
+  if (error || !data?.length) {
+    state.currentTeamId = "";
     localStorage.removeItem(TEAM_STORAGE_KEY);
+    return;
   }
+
+  rememberTeam(fromRemoteTeam(data[0]));
 }
 
 async function loadRemoteData() {
-  if (!state.session || !state.currentTeamId) {
+  if (!usingSupabase || !state.currentTeamId) {
     state.members = [];
     state.entries = [];
     render();
@@ -349,17 +282,8 @@ async function loadRemoteData() {
 
   try {
     const [membersResult, entriesResult] = await Promise.all([
-      supabaseClient
-        .from("coffee_members")
-        .select("*")
-        .eq("team_id", state.currentTeamId)
-        .order("name", { ascending: true }),
-      supabaseClient
-        .from("coffee_entries")
-        .select("*")
-        .eq("team_id", state.currentTeamId)
-        .order("entry_date", { ascending: false })
-        .order("created_at", { ascending: false }),
+      supabaseClient.rpc("list_coffee_members_public", { p_team_id: state.currentTeamId }),
+      supabaseClient.rpc("list_coffee_entries_public", { p_team_id: state.currentTeamId }),
     ]);
 
     if (membersResult.error) throw membersResult.error;
@@ -367,7 +291,7 @@ async function loadRemoteData() {
 
     state.members = membersResult.data.map(fromRemoteMember);
     state.entries = entriesResult.data.map(fromRemoteEntry);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ members: state.members, entries: state.entries }));
     setSyncStatus("remote", `Synchronisé: ${activeTeam()?.name || "équipe"}`);
     render();
   } catch (error) {
@@ -378,7 +302,7 @@ async function loadRemoteData() {
 }
 
 function subscribeToRemoteChanges() {
-  if (!usingSupabase || !state.session || !state.currentTeamId) return;
+  if (!usingSupabase || !state.currentTeamId) return;
 
   unsubscribeFromRemoteChanges();
   realtimeChannel = supabaseClient
@@ -396,70 +320,77 @@ function unsubscribeFromRemoteChanges() {
 }
 
 async function createTeam(name) {
-  if (!state.session) return;
-
-  const teamId = crypto.randomUUID();
-  const team = {
-    id: teamId,
-    name,
-    created_by: state.session.user.id,
-    created_at: new Date().toISOString(),
-  };
-  const membership = {
-    team_id: teamId,
-    user_id: state.session.user.id,
-    role: "owner",
-  };
+  if (!usingSupabase) {
+    const team = {
+      id: crypto.randomUUID(),
+      name,
+      inviteCode: "local",
+      createdAt: new Date().toISOString(),
+    };
+    rememberTeam(team);
+    state.currentTeamId = team.id;
+    localStorage.setItem(TEAM_STORAGE_KEY, team.id);
+    render();
+    return;
+  }
 
   await runRemoteMutation(async () => {
-    const teamResult = await supabaseClient.from("coffee_teams").insert(team);
-    if (teamResult.error) return teamResult;
-    return supabaseClient.from("coffee_team_memberships").insert(membership);
-  });
+    const result = await supabaseClient.rpc("create_coffee_team_public", {
+      p_team_name: name,
+      p_user_name: state.username,
+    });
+    if (result.error) return result;
 
-  state.currentTeamId = teamId;
-  localStorage.setItem(TEAM_STORAGE_KEY, state.currentTeamId);
-  await loadTeamsAndData();
+    const team = fromRemoteTeam(result.data[0]);
+    rememberTeam(team);
+    state.currentTeamId = team.id;
+    localStorage.setItem(TEAM_STORAGE_KEY, team.id);
+    return { error: null };
+  });
 }
 
 async function joinTeam(code) {
-  if (!state.session) return;
+  if (!usingSupabase) return;
 
-  try {
-    const { data, error } = await supabaseClient.rpc("join_coffee_team", {
-      team_invite_code: code,
+  await runRemoteMutation(async () => {
+    const result = await supabaseClient.rpc("join_coffee_team_public", {
+      p_invite_code: code,
+      p_user_name: state.username,
     });
+    if (result.error) return result;
 
-    if (error) throw error;
-    state.currentTeamId = data;
-    localStorage.setItem(TEAM_STORAGE_KEY, state.currentTeamId);
-    await loadTeamsAndData();
-  } catch (error) {
-    console.error(error);
-    alert("Impossible de rejoindre cette équipe. Vérifie le code d'invitation.");
-  }
+    const team = fromRemoteTeam(result.data[0]);
+    rememberTeam(team);
+    state.currentTeamId = team.id;
+    localStorage.setItem(TEAM_STORAGE_KEY, team.id);
+    return { error: null };
+  });
 }
 
 async function createMember(name) {
-  const member = {
+  if (usingSupabase) {
+    await runRemoteMutation(() => supabaseClient.rpc("create_coffee_member_public", {
+      p_team_id: state.currentTeamId,
+      p_name: name,
+    }));
+    return;
+  }
+
+  state.members.push({
     id: crypto.randomUUID(),
     teamId: state.currentTeamId || null,
     name,
     createdAt: new Date().toISOString(),
-  };
-
-  if (usingSupabase) {
-    await runRemoteMutation(() => supabaseClient.from("coffee_members").insert(toRemoteMember(member)));
-    return;
-  }
-
-  state.members.push(member);
+  });
   persistLocalAndRender();
 }
 
 async function deleteMember(id) {
   if (usingSupabase) {
-    await runRemoteMutation(() => supabaseClient.from("coffee_members").delete().eq("id", id).eq("team_id", state.currentTeamId));
+    await runRemoteMutation(() => supabaseClient.rpc("delete_coffee_member_public", {
+      p_team_id: state.currentTeamId,
+      p_member_id: id,
+    }));
     return;
   }
 
@@ -468,7 +399,21 @@ async function deleteMember(id) {
 }
 
 async function createEntry(input) {
-  const entry = {
+  if (usingSupabase) {
+    await runRemoteMutation(() => supabaseClient.rpc("create_coffee_entry_public", {
+      p_team_id: state.currentTeamId,
+      p_type: input.type,
+      p_member_id: input.memberId || null,
+      p_buyer_id: input.buyerId || null,
+      p_amount: input.amount,
+      p_pods: input.pods || null,
+      p_entry_date: input.date,
+      p_note: input.note || "",
+    }));
+    return;
+  }
+
+  state.entries.push({
     id: crypto.randomUUID(),
     teamId: state.currentTeamId || null,
     type: input.type,
@@ -479,20 +424,16 @@ async function createEntry(input) {
     date: input.date,
     note: input.note || "",
     createdAt: new Date().toISOString(),
-  };
-
-  if (usingSupabase) {
-    await runRemoteMutation(() => supabaseClient.from("coffee_entries").insert(toRemoteEntry(entry)));
-    return;
-  }
-
-  state.entries.push(entry);
+  });
   persistLocalAndRender();
 }
 
 async function deleteEntry(id) {
   if (usingSupabase) {
-    await runRemoteMutation(() => supabaseClient.from("coffee_entries").delete().eq("id", id).eq("team_id", state.currentTeamId));
+    await runRemoteMutation(() => supabaseClient.rpc("delete_coffee_entry_public", {
+      p_team_id: state.currentTeamId,
+      p_entry_id: id,
+    }));
     return;
   }
 
@@ -505,22 +446,33 @@ async function replaceAllData(imported) {
     if (!state.currentTeamId) return;
 
     await runRemoteMutation(async () => {
-      const deleteEntries = await supabaseClient.from("coffee_entries").delete().eq("team_id", state.currentTeamId);
-      if (deleteEntries.error) return deleteEntries;
+      const clearResult = await supabaseClient.rpc("clear_coffee_team_data_public", {
+        p_team_id: state.currentTeamId,
+      });
+      if (clearResult.error) return clearResult;
 
-      const deleteMembers = await supabaseClient.from("coffee_members").delete().eq("team_id", state.currentTeamId);
-      if (deleteMembers.error) return deleteMembers;
-
-      const members = imported.members.map(normalizeImportedMember).map((member) => toRemoteMember({ ...member, teamId: state.currentTeamId }));
-      const entries = imported.entries.map(normalizeImportedEntry).map((entry) => toRemoteEntry({ ...entry, teamId: state.currentTeamId }));
-
-      if (members.length) {
-        const membersInsert = await supabaseClient.from("coffee_members").insert(members);
-        if (membersInsert.error) return membersInsert;
+      const memberIdMap = new Map();
+      for (const member of imported.members.map(normalizeImportedMember)) {
+        const result = await supabaseClient.rpc("create_coffee_member_public", {
+          p_team_id: state.currentTeamId,
+          p_name: member.name,
+        });
+        if (result.error) return result;
+        memberIdMap.set(member.id, result.data);
       }
 
-      if (entries.length) {
-        return supabaseClient.from("coffee_entries").insert(entries);
+      for (const entry of imported.entries.map(normalizeImportedEntry)) {
+        const result = await supabaseClient.rpc("create_coffee_entry_public", {
+          p_team_id: state.currentTeamId,
+          p_type: entry.type,
+          p_member_id: entry.memberId ? memberIdMap.get(entry.memberId) || null : null,
+          p_buyer_id: entry.buyerId ? memberIdMap.get(entry.buyerId) || null : null,
+          p_amount: entry.amount,
+          p_pods: entry.pods || null,
+          p_entry_date: entry.date,
+          p_note: entry.note,
+        });
+        if (result.error) return result;
       }
 
       return { error: null };
@@ -540,7 +492,7 @@ async function runRemoteMutation(mutation) {
     await loadRemoteData();
   } catch (error) {
     console.error(error);
-    alert("La synchronisation Supabase a échoué. Vérifie la session, l'équipe active et les règles de sécurité.");
+    alert(`La synchronisation Supabase a échoué: ${error.message}`);
     setSyncStatus("error", "Erreur de synchronisation Supabase");
   }
 }
@@ -563,13 +515,29 @@ function loadLocalState() {
   return fallback;
 }
 
+function loadKnownTeams() {
+  try {
+    const teams = JSON.parse(localStorage.getItem(TEAMS_STORAGE_KEY));
+    return Array.isArray(teams) ? teams : [];
+  } catch (error) {
+    localStorage.removeItem(TEAMS_STORAGE_KEY);
+    return [];
+  }
+}
+
+function rememberTeam(team) {
+  state.teams = [team, ...state.teams.filter((item) => item.id !== team.id)]
+    .sort((a, b) => a.name.localeCompare(b.name, "fr"));
+  localStorage.setItem(TEAMS_STORAGE_KEY, JSON.stringify(state.teams));
+}
+
 function persistLocalAndRender() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({ members: state.members, entries: state.entries }));
   render();
 }
 
 function render() {
-  renderAuth();
+  renderUser();
   renderTeams();
   renderSummary();
   renderMembers();
@@ -577,30 +545,30 @@ function render() {
   renderLedger();
 }
 
-function renderAuth() {
-  const email = state.session?.user?.email || "";
-  elements.loginForm.classList.toggle("is-hidden", Boolean(email));
-  elements.sessionPanel.classList.toggle("is-hidden", !email);
-  elements.sessionEmail.textContent = email || "Non connecté";
-  elements.authMessage.textContent = usingSupabase
-    ? email ? "" : "Connexion par lien magique email."
-    : "Supabase n'est pas configuré, stockage local actif.";
+function renderUser() {
+  const hasUsername = Boolean(state.username);
+  elements.userForm.classList.toggle("is-hidden", hasUsername);
+  elements.userPanel.classList.toggle("is-hidden", !hasUsername);
+  elements.usernameDisplay.textContent = state.username || "Non configuré";
+  elements.authMessage.textContent = hasUsername
+    ? "Ce nom est stocké uniquement dans ce navigateur."
+    : "Aucun email ni mot de passe. Choisis juste un nom local.";
 }
 
 function renderTeams() {
-  const signedIn = Boolean(state.session);
-  elements.teamSelect.disabled = !signedIn || state.teams.length === 0;
-  elements.teamForm.querySelector("button").disabled = !signedIn;
-  elements.joinTeamForm.querySelector("button").disabled = !signedIn;
-  elements.teamName.disabled = !signedIn;
-  elements.teamCode.disabled = !signedIn;
+  const hasUsername = Boolean(state.username);
+  elements.teamSelect.disabled = !hasUsername || state.teams.length === 0;
+  elements.teamForm.querySelector("button").disabled = !hasUsername;
+  elements.joinTeamForm.querySelector("button").disabled = !hasUsername;
+  elements.teamName.disabled = !hasUsername;
+  elements.teamCode.disabled = !hasUsername;
 
   elements.teamSelect.innerHTML = state.teams
     .map((team) => `<option value="${team.id}" ${team.id === state.currentTeamId ? "selected" : ""}>${escapeHtml(team.name)}</option>`)
     .join("");
 
-  if (!signedIn) {
-    elements.teamMessage.textContent = "Connecte-toi pour choisir ou créer une équipe.";
+  if (!hasUsername) {
+    elements.teamMessage.textContent = "Choisis un nom d'utilisateur pour créer ou rejoindre une équipe.";
   } else if (!state.teams.length) {
     elements.teamMessage.textContent = "Crée une équipe ou rejoins-en une avec un code.";
   } else {
@@ -623,7 +591,7 @@ function renderMembers() {
   elements.memberList.innerHTML = "";
 
   if (!canUseWorkspace()) {
-    elements.memberList.append(emptyState("Choisis une équipe.", "Connecte-toi puis crée ou sélectionne une équipe pour gérer ses membres."));
+    elements.memberList.append(emptyState("Choisis une équipe.", "Définis ton nom puis crée ou rejoins une équipe pour gérer ses membres."));
     return;
   }
 
@@ -722,16 +690,6 @@ function renderLedger() {
   });
 }
 
-function toRemoteTeam(team) {
-  return {
-    id: team.id,
-    name: team.name,
-    invite_code: team.inviteCode,
-    created_by: team.createdBy,
-    created_at: team.createdAt,
-  };
-}
-
 function fromRemoteTeam(team) {
   return {
     id: team.id,
@@ -741,36 +699,12 @@ function fromRemoteTeam(team) {
   };
 }
 
-function toRemoteMember(member) {
-  return {
-    id: member.id,
-    team_id: member.teamId,
-    name: member.name,
-    created_at: member.createdAt,
-  };
-}
-
 function fromRemoteMember(member) {
   return {
     id: member.id,
     teamId: member.team_id,
     name: member.name,
     createdAt: member.created_at,
-  };
-}
-
-function toRemoteEntry(entry) {
-  return {
-    id: entry.id,
-    team_id: entry.teamId,
-    type: entry.type,
-    member_id: entry.memberId,
-    buyer_id: entry.buyerId,
-    amount: entry.amount,
-    pods: entry.pods,
-    entry_date: entry.date,
-    note: entry.note,
-    created_at: entry.createdAt,
   };
 }
 
@@ -814,7 +748,7 @@ function normalizeImportedEntry(entry) {
 }
 
 function canUseWorkspace() {
-  return !usingSupabase || Boolean(state.session && state.currentTeamId);
+  return Boolean(state.username && state.currentTeamId);
 }
 
 function activeTeam() {

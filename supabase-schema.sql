@@ -5,7 +5,8 @@ create table if not exists public.coffee_teams (
   id uuid primary key default gen_random_uuid(),
   name text not null,
   invite_code text not null default encode(gen_random_bytes(8), 'hex'),
-  created_by uuid not null references auth.users(id) on delete cascade,
+  created_by uuid references auth.users(id) on delete cascade,
+  created_by_name text,
   created_at timestamptz not null default now()
 );
 
@@ -136,6 +137,258 @@ grant execute on function public.join_coffee_team(text) to authenticated;
 drop function if exists public.is_coffee_team_member(uuid);
 drop function if exists public.is_coffee_team_owner(uuid);
 drop function if exists public.is_coffee_team_creator(uuid);
+
+create or replace function public.create_coffee_team_public(p_team_name text, p_user_name text)
+returns table(id uuid, name text, invite_code text, created_at timestamptz)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  normalized_name text := nullif(trim(p_team_name), '');
+  normalized_user_name text := nullif(trim(p_user_name), '');
+begin
+  if normalized_name is null then
+    raise exception 'Team name is required';
+  end if;
+
+  if normalized_user_name is null then
+    raise exception 'User name is required';
+  end if;
+
+  return query
+    insert into public.coffee_teams (name, created_by_name)
+    values (normalized_name, normalized_user_name)
+    returning coffee_teams.id, coffee_teams.name, coffee_teams.invite_code, coffee_teams.created_at;
+end;
+$$;
+
+create or replace function public.join_coffee_team_public(p_invite_code text, p_user_name text)
+returns table(id uuid, name text, invite_code text, created_at timestamptz)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  normalized_code text := nullif(trim(p_invite_code), '');
+  normalized_user_name text := nullif(trim(p_user_name), '');
+begin
+  if normalized_code is null then
+    raise exception 'Team invitation code is required';
+  end if;
+
+  if normalized_user_name is null then
+    raise exception 'User name is required';
+  end if;
+
+  return query
+    select team.id, team.name, team.invite_code, team.created_at
+    from public.coffee_teams team
+    where team.invite_code = normalized_code
+    limit 1;
+
+  if not found then
+    raise exception 'Invalid team invitation code';
+  end if;
+end;
+$$;
+
+create or replace function public.get_coffee_team_public(p_team_id uuid)
+returns table(id uuid, name text, invite_code text, created_at timestamptz)
+language sql
+security definer
+set search_path = public
+as $$
+  select team.id, team.name, team.invite_code, team.created_at
+  from public.coffee_teams team
+  where team.id = p_team_id
+  limit 1;
+$$;
+
+create or replace function public.list_coffee_members_public(p_team_id uuid)
+returns table(id uuid, team_id uuid, name text, created_at timestamptz)
+language sql
+security definer
+set search_path = public
+as $$
+  select member.id, member.team_id, member.name, member.created_at
+  from public.coffee_members member
+  where member.team_id = p_team_id
+  order by member.name;
+$$;
+
+create or replace function public.list_coffee_entries_public(p_team_id uuid)
+returns table(
+  id uuid,
+  team_id uuid,
+  type text,
+  member_id uuid,
+  buyer_id uuid,
+  amount numeric,
+  pods integer,
+  entry_date date,
+  note text,
+  created_at timestamptz
+)
+language sql
+security definer
+set search_path = public
+as $$
+  select entry.id, entry.team_id, entry.type, entry.member_id, entry.buyer_id, entry.amount, entry.pods, entry.entry_date, entry.note, entry.created_at
+  from public.coffee_entries entry
+  where entry.team_id = p_team_id
+  order by entry.entry_date desc, entry.created_at desc;
+$$;
+
+create or replace function public.create_coffee_member_public(p_team_id uuid, p_name text)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  new_member_id uuid;
+  normalized_name text := nullif(trim(p_name), '');
+begin
+  if normalized_name is null then
+    raise exception 'Member name is required';
+  end if;
+
+  if not exists (select 1 from public.coffee_teams team where team.id = p_team_id) then
+    raise exception 'Unknown team';
+  end if;
+
+  insert into public.coffee_members (team_id, name)
+  values (p_team_id, normalized_name)
+  returning id into new_member_id;
+
+  return new_member_id;
+end;
+$$;
+
+create or replace function public.delete_coffee_member_public(p_team_id uuid, p_member_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  delete from public.coffee_members
+  where id = p_member_id
+    and team_id = p_team_id;
+end;
+$$;
+
+create or replace function public.create_coffee_entry_public(
+  p_team_id uuid,
+  p_type text,
+  p_member_id uuid,
+  p_buyer_id uuid,
+  p_amount numeric,
+  p_pods integer,
+  p_entry_date date,
+  p_note text
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  new_entry_id uuid;
+begin
+  if not exists (select 1 from public.coffee_teams team where team.id = p_team_id) then
+    raise exception 'Unknown team';
+  end if;
+
+  if p_type not in ('contribution', 'purchase') then
+    raise exception 'Invalid entry type';
+  end if;
+
+  if p_amount is null or p_amount <= 0 then
+    raise exception 'Amount must be positive';
+  end if;
+
+  if p_type = 'contribution' and not exists (
+    select 1 from public.coffee_members member
+    where member.id = p_member_id and member.team_id = p_team_id
+  ) then
+    raise exception 'Unknown member';
+  end if;
+
+  if p_type = 'purchase' and not exists (
+    select 1 from public.coffee_members member
+    where member.id = p_buyer_id and member.team_id = p_team_id
+  ) then
+    raise exception 'Unknown buyer';
+  end if;
+
+  insert into public.coffee_entries (team_id, type, member_id, buyer_id, amount, pods, entry_date, note)
+  values (
+    p_team_id,
+    p_type,
+    case when p_type = 'contribution' then p_member_id else null end,
+    case when p_type = 'purchase' then p_buyer_id else null end,
+    p_amount,
+    case when p_type = 'purchase' then p_pods else null end,
+    coalesce(p_entry_date, current_date),
+    coalesce(p_note, '')
+  )
+  returning id into new_entry_id;
+
+  return new_entry_id;
+end;
+$$;
+
+create or replace function public.delete_coffee_entry_public(p_team_id uuid, p_entry_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  delete from public.coffee_entries
+  where id = p_entry_id
+    and team_id = p_team_id;
+end;
+$$;
+
+create or replace function public.clear_coffee_team_data_public(p_team_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not exists (select 1 from public.coffee_teams team where team.id = p_team_id) then
+    raise exception 'Unknown team';
+  end if;
+
+  delete from public.coffee_entries where team_id = p_team_id;
+  delete from public.coffee_members where team_id = p_team_id;
+end;
+$$;
+
+revoke execute on function public.create_coffee_team_public(text, text) from public;
+revoke execute on function public.join_coffee_team_public(text, text) from public;
+revoke execute on function public.get_coffee_team_public(uuid) from public;
+revoke execute on function public.list_coffee_members_public(uuid) from public;
+revoke execute on function public.list_coffee_entries_public(uuid) from public;
+revoke execute on function public.create_coffee_member_public(uuid, text) from public;
+revoke execute on function public.delete_coffee_member_public(uuid, uuid) from public;
+revoke execute on function public.create_coffee_entry_public(uuid, text, uuid, uuid, numeric, integer, date, text) from public;
+revoke execute on function public.delete_coffee_entry_public(uuid, uuid) from public;
+revoke execute on function public.clear_coffee_team_data_public(uuid) from public;
+grant execute on function public.create_coffee_team_public(text, text) to anon, authenticated;
+grant execute on function public.join_coffee_team_public(text, text) to anon, authenticated;
+grant execute on function public.get_coffee_team_public(uuid) to anon, authenticated;
+grant execute on function public.list_coffee_members_public(uuid) to anon, authenticated;
+grant execute on function public.list_coffee_entries_public(uuid) to anon, authenticated;
+grant execute on function public.create_coffee_member_public(uuid, text) to anon, authenticated;
+grant execute on function public.delete_coffee_member_public(uuid, uuid) to anon, authenticated;
+grant execute on function public.create_coffee_entry_public(uuid, text, uuid, uuid, numeric, integer, date, text) to anon, authenticated;
+grant execute on function public.delete_coffee_entry_public(uuid, uuid) to anon, authenticated;
+grant execute on function public.clear_coffee_team_data_public(uuid) to anon, authenticated;
 
 alter table public.coffee_teams enable row level security;
 alter table public.coffee_team_memberships enable row level security;
