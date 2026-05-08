@@ -25,6 +25,56 @@
         </div>
       </header>
 
+      <section class="account-grid" aria-label="Compte et equipe">
+        <div class="panel" id="authPanel">
+          <div class="panel-heading">
+            <h2>Compte</h2>
+          </div>
+          <form class="inline-form" id="loginForm">
+            <label>
+              Email
+              <input id="loginEmail" type="email" placeholder="vous@entreprise.com" autocomplete="email" required />
+            </label>
+            <button type="submit">Recevoir le lien</button>
+          </form>
+          <div class="session-row is-hidden" id="sessionPanel">
+            <div>
+              <strong id="sessionEmail">Non connecte</strong>
+              <span>Connecté avec Supabase</span>
+            </div>
+            <button class="ghost-button" id="signOutButton" type="button">Déconnexion</button>
+          </div>
+          <p class="helper-text" id="authMessage"></p>
+        </div>
+
+        <div class="panel" id="teamPanel">
+          <div class="panel-heading">
+            <h2>Équipe</h2>
+          </div>
+          <div class="stack-form">
+            <label>
+              Équipe active
+              <select id="teamSelect"></select>
+            </label>
+            <form class="inline-form" id="teamForm">
+              <label>
+                Nouvelle équipe
+                <input id="teamName" type="text" placeholder="Ex. Produit" autocomplete="off" required />
+              </label>
+              <button type="submit">Créer</button>
+            </form>
+            <form class="inline-form" id="joinTeamForm">
+              <label>
+                Code équipe
+                <input id="teamCode" type="text" placeholder="Ex. a1b2c3d4" autocomplete="off" required />
+              </label>
+              <button type="submit">Rejoindre</button>
+            </form>
+            <p class="helper-text" id="teamMessage">Connecte-toi pour choisir ou créer une équipe.</p>
+          </div>
+        </div>
+      </section>
+
       <section class="summary-grid" aria-label="Résumé">
         <article class="summary-card">
           <span>Total collecté</span>

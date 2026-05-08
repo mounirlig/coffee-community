@@ -2,7 +2,7 @@
 
 Application web statique pour suivre les contributions financieres d'une equipe aux achats de dosettes de cafe.
 
-Les donnees sont synchronisees avec Supabase. Si Supabase n'est pas disponible, l'application utilise le `localStorage` du navigateur comme fallback.
+Les donnees sont synchronisees avec Supabase et isolees par equipe. Les utilisateurs se connectent par lien email, creent ou choisissent une equipe, ou rejoignent une equipe existante avec un code d'invitation.
 
 ## Lancer en local
 
@@ -29,8 +29,14 @@ Le projet est branche sur Supabase avec le fichier `supabase-config.js`.
 
 Le schema SQL applique est conserve dans `supabase-schema.sql`. Il cree :
 
+- `coffee_teams`
+- `coffee_team_memberships`
 - `coffee_members`
 - `coffee_entries`
+
+Les policies RLS s'appuient sur `auth.uid()` et sur `coffee_team_memberships` pour limiter les lectures/ecritures aux membres de chaque equipe.
+
+Chaque equipe possede un `invite_code`. Un utilisateur connecte peut rejoindre l'equipe via la fonction RPC `join_coffee_team`, puis les policies RLS lui donnent acces uniquement a cette equipe.
 
 Pour changer de projet Supabase, ouvrir Project Settings > API dans Supabase, puis remplacer `url` et `anonKey` dans `supabase-config.js` :
 
@@ -41,4 +47,4 @@ window.COFFEE_COMMUNITY_SUPABASE = {
 };
 ```
 
-Note: cette configuration donne un acces lecture/ecriture public a la base via la cle `anon`, ce qui convient pour une petite equipe de confiance. Pour une app publique, il faudra ajouter une authentification et des politiques RLS plus strictes.
+Note: la cle publique Supabase reste visible cote client, ce qui est normal. La securite repose sur l'authentification Supabase et les policies RLS par equipe.

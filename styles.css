@@ -145,6 +145,13 @@ form button {
   margin-bottom: 18px;
 }
 
+.account-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
 .summary-card,
 .panel {
   border: 1px solid var(--border);
@@ -198,6 +205,32 @@ form button {
 .stack-form {
   display: grid;
   gap: 14px;
+}
+
+.session-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.session-row strong,
+.session-row span {
+  display: block;
+}
+
+.session-row span,
+.helper-text {
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.helper-text {
+  margin: 12px 0 0;
+}
+
+.is-hidden {
+  display: none !important;
 }
 
 label {
@@ -326,8 +359,10 @@ select:focus {
 
 @media (max-width: 920px) {
   .topbar,
-  .workspace {
+  .workspace,
+  .account-grid {
     display: grid;
+    grid-template-columns: 1fr;
   }
 
   .summary-grid {
