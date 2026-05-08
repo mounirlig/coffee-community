@@ -192,6 +192,7 @@ https://coffee-community-eight.vercel.app/
 |-- index.html            # Structure HTML de l'application
 |-- styles.css            # Styles, layout responsive et animation du logo
 |-- app.js                # Logique applicative, Supabase, rendu et interactions
+|-- favicon.svg           # Favicon derivee de la tasse du header
 |-- supabase-config.js    # URL Supabase et anonKey publique
 |-- supabase-schema.sql   # Schema SQL et fonctions RPC Supabase
 |-- Dockerfile            # Image Nginx non-root pour Kubernetes
