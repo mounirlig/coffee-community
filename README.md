@@ -182,6 +182,9 @@ https://coffee-community-eight.vercel.app/
 |-- app.js                # Logique applicative, Supabase, rendu et interactions
 |-- supabase-config.js    # URL Supabase et anonKey publique
 |-- supabase-schema.sql   # Schema SQL et fonctions RPC Supabase
+|-- Dockerfile            # Image Nginx non-root pour Kubernetes
+|-- nginx.conf            # Configuration Nginx de l'image Docker
+|-- .dockerignore         # Fichiers exclus du contexte Docker
 |-- vercel.json           # Configuration de deploiement Vercel
 |-- package.json          # Script local minimal
 |-- README.md             # Documentation projet
@@ -270,6 +273,101 @@ Le fichier `vercel.json` contient deja :
 - cache court pour `app.js`, `styles.css` et `supabase-config.js` ;
 - rewrite vers `index.html`.
 
+## Construire une image Docker
+
+Le repo contient un `Dockerfile` permettant de construire une image OCI fonctionnelle pour un environnement cloud ou Kubernetes.
+
+L'image utilise :
+
+- `nginxinc/nginx-unprivileged:1.27-alpine` ;
+- un utilisateur non-root fourni par l'image de base ;
+- le port applicatif `8080` ;
+- une route de sante `GET /healthz` ;
+- un fallback `try_files` vers `index.html` ;
+- des headers de base, dont `X-Content-Type-Options: nosniff` ;
+- un cache court pour `app.js`, `styles.css` et `supabase-config.js`.
+
+Construire l'image :
+
+```bash
+docker build -t coffee-community:local .
+```
+
+Lancer l'image localement :
+
+```bash
+docker run --rm -p 8080:8080 coffee-community:local
+```
+
+Puis ouvrir :
+
+```text
+http://localhost:8080
+```
+
+Verifier la route de sante :
+
+```bash
+curl http://localhost:8080/healthz
+```
+
+Exemple minimal de deploiement Kubernetes :
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: coffee-community
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: coffee-community
+  template:
+    metadata:
+      labels:
+        app: coffee-community
+    spec:
+      containers:
+        - name: coffee-community
+          image: registry.example.com/coffee-community:latest
+          ports:
+            - containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities:
+              drop:
+                - ALL
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: coffee-community
+spec:
+  selector:
+    app: coffee-community
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+```
+
+Avant de pousser vers un registre, tagger l'image selon le registre cible :
+
+```bash
+docker tag coffee-community:local registry.example.com/coffee-community:latest
+docker push registry.example.com/coffee-community:latest
+```
+
 ## Verification rapide
 
 Commandes utiles avant de pousser :
@@ -277,6 +375,7 @@ Commandes utiles avant de pousser :
 ```bash
 node --check app.js
 git diff --check
+docker build -t coffee-community:local .
 ```
 
 Pour tester le flux Supabase, verifier dans l'interface :

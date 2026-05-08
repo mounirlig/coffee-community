@@ -1,0 +1,8 @@
+.git
+.vercel
+Dockerfile
+README.md
+supabase-schema.sql
+package.json
+vercel.json
+*.log
