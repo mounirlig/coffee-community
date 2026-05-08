@@ -138,7 +138,10 @@ drop function if exists public.is_coffee_team_member(uuid);
 drop function if exists public.is_coffee_team_owner(uuid);
 drop function if exists public.is_coffee_team_creator(uuid);
 
-create or replace function public.create_coffee_team_public(p_team_name text, p_user_name text)
+drop function if exists public.create_coffee_team_public(text, text);
+drop function if exists public.join_coffee_team_public(text, text);
+
+create or replace function public.create_coffee_team_public(p_team_name text)
 returns table(id uuid, name text, invite_code text, created_at timestamptz)
 language plpgsql
 security definer
@@ -146,24 +149,19 @@ set search_path = public
 as $$
 declare
   normalized_name text := nullif(trim(p_team_name), '');
-  normalized_user_name text := nullif(trim(p_user_name), '');
 begin
   if normalized_name is null then
     raise exception 'Team name is required';
   end if;
 
-  if normalized_user_name is null then
-    raise exception 'User name is required';
-  end if;
-
   return query
-    insert into public.coffee_teams (name, created_by_name)
-    values (normalized_name, normalized_user_name)
+    insert into public.coffee_teams (name)
+    values (normalized_name)
     returning coffee_teams.id, coffee_teams.name, coffee_teams.invite_code, coffee_teams.created_at;
 end;
 $$;
 
-create or replace function public.join_coffee_team_public(p_invite_code text, p_user_name text)
+create or replace function public.join_coffee_team_public(p_invite_code text)
 returns table(id uuid, name text, invite_code text, created_at timestamptz)
 language plpgsql
 security definer
@@ -171,14 +169,9 @@ set search_path = public
 as $$
 declare
   normalized_code text := nullif(trim(p_invite_code), '');
-  normalized_user_name text := nullif(trim(p_user_name), '');
 begin
   if normalized_code is null then
     raise exception 'Team invitation code is required';
-  end if;
-
-  if normalized_user_name is null then
-    raise exception 'User name is required';
   end if;
 
   return query
@@ -369,8 +362,8 @@ begin
 end;
 $$;
 
-revoke execute on function public.create_coffee_team_public(text, text) from public;
-revoke execute on function public.join_coffee_team_public(text, text) from public;
+revoke execute on function public.create_coffee_team_public(text) from public;
+revoke execute on function public.join_coffee_team_public(text) from public;
 revoke execute on function public.get_coffee_team_public(uuid) from public;
 revoke execute on function public.list_coffee_members_public(uuid) from public;
 revoke execute on function public.list_coffee_entries_public(uuid) from public;
@@ -379,8 +372,8 @@ revoke execute on function public.delete_coffee_member_public(uuid, uuid) from p
 revoke execute on function public.create_coffee_entry_public(uuid, text, uuid, uuid, numeric, integer, date, text) from public;
 revoke execute on function public.delete_coffee_entry_public(uuid, uuid) from public;
 revoke execute on function public.clear_coffee_team_data_public(uuid) from public;
-grant execute on function public.create_coffee_team_public(text, text) to anon, authenticated;
-grant execute on function public.join_coffee_team_public(text, text) to anon, authenticated;
+grant execute on function public.create_coffee_team_public(text) to anon, authenticated;
+grant execute on function public.join_coffee_team_public(text) to anon, authenticated;
 grant execute on function public.get_coffee_team_public(uuid) to anon, authenticated;
 grant execute on function public.list_coffee_members_public(uuid) to anon, authenticated;
 grant execute on function public.list_coffee_entries_public(uuid) to anon, authenticated;

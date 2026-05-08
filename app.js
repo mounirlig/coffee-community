@@ -1,11 +1,9 @@
 const STORAGE_KEY = "coffee-community-data-v6";
 const TEAM_STORAGE_KEY = "coffee-community-active-team";
 const TEAMS_STORAGE_KEY = "coffee-community-known-teams";
-const USERNAME_STORAGE_KEY = "coffee-community-username";
 const SUPABASE_CONFIG = window.COFFEE_COMMUNITY_SUPABASE || {};
 
 const state = {
-  username: localStorage.getItem(USERNAME_STORAGE_KEY) || "",
   teams: loadKnownTeams(),
   currentTeamId: localStorage.getItem(TEAM_STORAGE_KEY) || "",
   members: [],
@@ -28,12 +26,6 @@ const elements = {
   cashBalance: document.querySelector("#cashBalance"),
   memberCount: document.querySelector("#memberCount"),
   syncStatus: document.querySelector("#syncStatus"),
-  userForm: document.querySelector("#userForm"),
-  usernameInput: document.querySelector("#usernameInput"),
-  userPanel: document.querySelector("#userPanel"),
-  usernameDisplay: document.querySelector("#usernameDisplay"),
-  changeUserButton: document.querySelector("#changeUserButton"),
-  authMessage: document.querySelector("#authMessage"),
   teamForm: document.querySelector("#teamForm"),
   teamName: document.querySelector("#teamName"),
   joinTeamForm: document.querySelector("#joinTeamForm"),
@@ -63,27 +55,12 @@ const elements = {
 const today = new Date().toISOString().slice(0, 10);
 elements.contributionDate.value = today;
 elements.purchaseDate.value = today;
-
-elements.userForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const username = elements.usernameInput.value.trim();
-  if (!username) return;
-
-  state.username = username;
-  localStorage.setItem(USERNAME_STORAGE_KEY, username);
-  render();
-});
-
-elements.changeUserButton.addEventListener("click", () => {
-  state.username = "";
-  localStorage.removeItem(USERNAME_STORAGE_KEY);
-  render();
-});
+localStorage.removeItem("coffee-community-username");
 
 elements.teamForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const name = elements.teamName.value.trim();
-  if (!name || !state.username) return;
+  if (!name) return;
 
   await createTeam(name);
   elements.teamName.value = "";
@@ -92,7 +69,7 @@ elements.teamForm.addEventListener("submit", async (event) => {
 elements.joinTeamForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const code = elements.teamCode.value.trim();
-  if (!code || !state.username) return;
+  if (!code) return;
 
   await joinTeam(code);
   elements.teamCode.value = "";
@@ -337,7 +314,6 @@ async function createTeam(name) {
   await runRemoteMutation(async () => {
     const result = await supabaseClient.rpc("create_coffee_team_public", {
       p_team_name: name,
-      p_user_name: state.username,
     });
     if (result.error) return result;
 
@@ -355,7 +331,6 @@ async function joinTeam(code) {
   await runRemoteMutation(async () => {
     const result = await supabaseClient.rpc("join_coffee_team_public", {
       p_invite_code: code,
-      p_user_name: state.username,
     });
     if (result.error) return result;
 
@@ -537,7 +512,6 @@ function persistLocalAndRender() {
 }
 
 function render() {
-  renderUser();
   renderTeams();
   renderSummary();
   renderMembers();
@@ -545,31 +519,18 @@ function render() {
   renderLedger();
 }
 
-function renderUser() {
-  const hasUsername = Boolean(state.username);
-  elements.userForm.classList.toggle("is-hidden", hasUsername);
-  elements.userPanel.classList.toggle("is-hidden", !hasUsername);
-  elements.usernameDisplay.textContent = state.username || "Non configuré";
-  elements.authMessage.textContent = hasUsername
-    ? "Ce nom est stocké uniquement dans ce navigateur."
-    : "Aucun email ni mot de passe. Choisis juste un nom local.";
-}
-
 function renderTeams() {
-  const hasUsername = Boolean(state.username);
-  elements.teamSelect.disabled = !hasUsername || state.teams.length === 0;
-  elements.teamForm.querySelector("button").disabled = !hasUsername;
-  elements.joinTeamForm.querySelector("button").disabled = !hasUsername;
-  elements.teamName.disabled = !hasUsername;
-  elements.teamCode.disabled = !hasUsername;
+  elements.teamSelect.disabled = state.teams.length === 0;
+  elements.teamForm.querySelector("button").disabled = false;
+  elements.joinTeamForm.querySelector("button").disabled = false;
+  elements.teamName.disabled = false;
+  elements.teamCode.disabled = false;
 
   elements.teamSelect.innerHTML = state.teams
     .map((team) => `<option value="${team.id}" ${team.id === state.currentTeamId ? "selected" : ""}>${escapeHtml(team.name)}</option>`)
     .join("");
 
-  if (!hasUsername) {
-    elements.teamMessage.textContent = "Choisis un nom d'utilisateur pour créer ou rejoindre une équipe.";
-  } else if (!state.teams.length) {
+  if (!state.teams.length) {
     elements.teamMessage.textContent = "Crée une équipe ou rejoins-en une avec un code.";
   } else {
     const team = activeTeam();
@@ -591,7 +552,7 @@ function renderMembers() {
   elements.memberList.innerHTML = "";
 
   if (!canUseWorkspace()) {
-    elements.memberList.append(emptyState("Choisis une équipe.", "Définis ton nom puis crée ou rejoins une équipe pour gérer ses membres."));
+    elements.memberList.append(emptyState("Choisis une équipe.", "Crée une équipe ou rejoins-en une avec un code pour gérer ses membres."));
     return;
   }
 
@@ -748,7 +709,7 @@ function normalizeImportedEntry(entry) {
 }
 
 function canUseWorkspace() {
-  return Boolean(state.username && state.currentTeamId);
+  return Boolean(state.currentTeamId);
 }
 
 function activeTeam() {

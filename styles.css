@@ -147,7 +147,7 @@ form button {
 
 .account-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   gap: 18px;
   margin-bottom: 18px;
 }

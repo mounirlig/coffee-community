@@ -2,7 +2,7 @@
 
 Application web statique pour suivre les contributions financieres d'une equipe aux achats de dosettes de cafe.
 
-Les donnees sont synchronisees avec Supabase et separent les equipes par code d'invitation. Il n'y a pas d'authentification email : chaque personne choisit simplement un nom d'utilisateur local, stocke dans son navigateur.
+Les donnees sont synchronisees avec Supabase et separent les equipes par code d'invitation. Il n'y a pas d'authentification ni d'identite locale : une personne cree une equipe ou rejoint directement une equipe existante avec son code.
 
 ## Lancer en local
 
@@ -47,4 +47,4 @@ window.COFFEE_COMMUNITY_SUPABASE = {
 };
 ```
 
-Note: la cle publique Supabase reste visible cote client, ce qui est normal. Comme il n'y a plus de verification email, ce modele convient a un usage interne simple et base sur la confiance. Toute personne qui possede le code d'une equipe peut la rejoindre et agir dessus. Pour une isolation forte par utilisateur, il faudra remettre une authentification Supabase et des policies RLS par membership verifie.
+Note: la cle publique Supabase reste visible cote client, ce qui est normal. Comme il n'y a aucune verification d'identite, ce modele convient a un usage interne simple et base sur la confiance. Toute personne qui possede le code d'une equipe peut la rejoindre et agir dessus. Pour une isolation forte par utilisateur, il faudra remettre une authentification Supabase et des policies RLS par membership verifie.
