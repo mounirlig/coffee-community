@@ -80,7 +80,7 @@ Pour chaque achat :
 - la partie verte represente les contributions disponibles qui compensent cet achat ;
 - le badge indique si l'achat est totalement compense ou le montant restant a compenser.
 
-Le calcul suit l'ordre chronologique des mouvements : les contributions alimentent une caisse disponible, puis chaque achat consomme cette caisse jusqu'a hauteur de son montant.
+Le calcul prend le total des contributions disponibles et les affecte aux achats dans l'ordre chronologique des achats. Une contribution saisie apres un achat peut donc venir compenser cet achat, puis le graphique se met a jour au prochain rendu.
 
 ### 7. Importer et exporter les donnees
 

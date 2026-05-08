@@ -651,21 +651,18 @@ function renderMembers() {
 }
 
 function getPurchaseCoverageRows() {
-  let contributionPool = 0;
+  let contributionPool = sumEntries("contribution");
 
   return state.entries
+    .filter((entry) => entry.type === "purchase")
     .slice()
     .sort((a, b) => `${a.date}${a.createdAt}`.localeCompare(`${b.date}${b.createdAt}`))
-    .reduce((rows, entry) => {
-      if (entry.type === "contribution") {
-        contributionPool += Number(entry.amount);
-        return rows;
-      }
-
+    .map((entry) => {
       const amount = Number(entry.amount);
       const covered = Math.min(contributionPool, amount);
       contributionPool -= covered;
-      rows.push({
+
+      return {
         amount,
         covered,
         title: `Achat du ${formatDate(entry.date)}`,
@@ -674,9 +671,8 @@ function getPurchaseCoverageRows() {
           entry.pods ? `${entry.pods} dosettes` : "",
           entry.note,
         ].filter(Boolean).join(" - "),
-      });
-      return rows;
-    }, [])
+      };
+    })
     .reverse();
 }
 
