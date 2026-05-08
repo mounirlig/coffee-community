@@ -12,6 +12,7 @@
         <div>
           <p class="eyebrow">Coffee Community</p>
           <h1>Suivi des dosettes de café</h1>
+          <p class="sync-status" id="syncStatus">Stockage local</p>
         </div>
         <div class="topbar-actions">
           <button class="ghost-button" id="exportData" type="button" title="Exporter les données">
@@ -139,6 +140,8 @@
       </div>
     </template>
 
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="./supabase-config.js"></script>
     <script src="./app.js"></script>
   </body>
 </html>

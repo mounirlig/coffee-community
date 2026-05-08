@@ -67,6 +67,30 @@ button:disabled {
   text-transform: uppercase;
 }
 
+.sync-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  margin: 16px 0 0;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0 12px;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.sync-status[data-mode="remote"] {
+  border-color: rgba(45, 127, 115, 0.28);
+  color: var(--accent-dark);
+}
+
+.sync-status[data-mode="error"] {
+  border-color: rgba(182, 64, 64, 0.28);
+  color: var(--danger);
+}
+
 h1,
 h2,
 p {
