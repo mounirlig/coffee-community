@@ -1,11 +1,13 @@
 const STORAGE_KEY = "coffee-community-data-v6";
 const TEAM_STORAGE_KEY = "coffee-community-active-team";
 const TEAMS_STORAGE_KEY = "coffee-community-known-teams";
+const TEAM_COLLAPSED_STORAGE_KEY = "coffee-community-team-collapsed";
 const SUPABASE_CONFIG = window.COFFEE_COMMUNITY_SUPABASE || {};
 
 const state = {
   teams: loadKnownTeams(),
   currentTeamId: localStorage.getItem(TEAM_STORAGE_KEY) || "",
+  isTeamCollapsed: localStorage.getItem(TEAM_COLLAPSED_STORAGE_KEY) === "true",
   members: [],
   entries: [],
 };
@@ -26,6 +28,10 @@ const elements = {
   cashBalance: document.querySelector("#cashBalance"),
   memberCount: document.querySelector("#memberCount"),
   syncStatus: document.querySelector("#syncStatus"),
+  teamPanel: document.querySelector("#teamPanel"),
+  teamToggle: document.querySelector("#teamToggle"),
+  teamToggleLabel: document.querySelector("#teamToggleLabel"),
+  teamContent: document.querySelector("#teamContent"),
   teamForm: document.querySelector("#teamForm"),
   teamName: document.querySelector("#teamName"),
   joinTeamForm: document.querySelector("#joinTeamForm"),
@@ -56,6 +62,12 @@ const today = new Date().toISOString().slice(0, 10);
 elements.contributionDate.value = today;
 elements.purchaseDate.value = today;
 localStorage.removeItem("coffee-community-username");
+
+elements.teamToggle.addEventListener("click", () => {
+  state.isTeamCollapsed = !state.isTeamCollapsed;
+  localStorage.setItem(TEAM_COLLAPSED_STORAGE_KEY, String(state.isTeamCollapsed));
+  renderTeamCollapse();
+});
 
 elements.teamForm.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -512,11 +524,20 @@ function persistLocalAndRender() {
 }
 
 function render() {
+  renderTeamCollapse();
   renderTeams();
   renderSummary();
   renderMembers();
   renderSelects();
   renderLedger();
+}
+
+function renderTeamCollapse() {
+  const isExpanded = !state.isTeamCollapsed;
+  elements.teamPanel.classList.toggle("is-collapsed", state.isTeamCollapsed);
+  elements.teamContent.hidden = state.isTeamCollapsed;
+  elements.teamToggle.setAttribute("aria-expanded", String(isExpanded));
+  elements.teamToggleLabel.textContent = isExpanded ? "Masquer" : "Afficher";
 }
 
 function renderTeams() {

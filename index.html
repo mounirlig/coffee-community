@@ -34,8 +34,12 @@
         <div class="panel" id="teamPanel">
           <div class="panel-heading">
             <h2>Équipe</h2>
+            <button class="collapse-button" id="teamToggle" type="button" aria-expanded="true" aria-controls="teamContent">
+              <span id="teamToggleLabel">Masquer</span>
+              <span class="collapse-icon" aria-hidden="true">⌃</span>
+            </button>
           </div>
-          <div class="stack-form">
+          <div class="stack-form" id="teamContent">
             <label>
               Équipe active
               <select id="teamSelect"></select>

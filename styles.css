@@ -209,6 +209,30 @@ form button {
   color: var(--text);
 }
 
+.collapse-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0 12px;
+  background: var(--surface-soft);
+  color: var(--text);
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.collapse-icon {
+  display: inline-block;
+  line-height: 1;
+  transition: transform 160ms ease;
+}
+
+.is-collapsed .collapse-icon {
+  transform: rotate(180deg);
+}
+
 .data-actions {
   justify-content: flex-end;
   margin-top: 18px;
@@ -311,6 +335,10 @@ form button {
 }
 
 .is-hidden {
+  display: none !important;
+}
+
+[hidden] {
   display: none !important;
 }
 
