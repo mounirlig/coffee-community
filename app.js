@@ -281,7 +281,7 @@ async function signIn(email) {
 
   if (error) {
     console.error(error);
-    elements.authMessage.textContent = "Impossible d'envoyer le lien de connexion.";
+    elements.authMessage.textContent = `Impossible d'envoyer le lien: ${error.message}`;
     return;
   }
 
