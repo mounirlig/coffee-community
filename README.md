@@ -70,7 +70,19 @@ L'historique liste toutes les lignes saisies. Il peut etre filtre par :
 
 Chaque ligne d'historique peut etre supprimee avec confirmation.
 
-### 6. Importer et exporter les donnees
+### 6. Suivre la compensation des achats
+
+Le panneau **Compensation des achats** affiche un graphique en barres par achat de dosettes.
+
+Pour chaque achat :
+
+- la barre complete represente le montant de l'achat ;
+- la partie verte represente les contributions disponibles qui compensent cet achat ;
+- le badge indique si l'achat est totalement compense ou le montant restant a compenser.
+
+Le calcul suit l'ordre chronologique des mouvements : les contributions alimentent une caisse disponible, puis chaque achat consomme cette caisse jusqu'a hauteur de son montant.
+
+### 7. Importer et exporter les donnees
 
 Les boutons **Exporter** et **Importer** sont situes en bas de page.
 

@@ -52,6 +52,7 @@ const elements = {
   purchasePods: document.querySelector("#purchasePods"),
   purchaseBuyer: document.querySelector("#purchaseBuyer"),
   purchaseNote: document.querySelector("#purchaseNote"),
+  coverageChart: document.querySelector("#coverageChart"),
   ledger: document.querySelector("#ledger"),
   exportData: document.querySelector("#exportData"),
   importData: document.querySelector("#importData"),
@@ -527,6 +528,7 @@ function render() {
   renderTeamCollapse();
   renderTeams();
   renderSummary();
+  renderCoverageChart();
   renderMembers();
   renderSelects();
   renderLedger();
@@ -569,6 +571,49 @@ function renderSummary() {
   elements.memberCount.textContent = String(state.members.length);
 }
 
+function renderCoverageChart() {
+  elements.coverageChart.innerHTML = "";
+
+  if (!canUseWorkspace()) {
+    elements.coverageChart.append(emptyState("Choisis une équipe.", "Le graphique apparaîtra après sélection d'une équipe."));
+    return;
+  }
+
+  const rows = getPurchaseCoverageRows();
+  if (!rows.length) {
+    elements.coverageChart.append(emptyState("Aucun achat à compenser.", "Enregistre un achat de dosettes pour suivre sa couverture par les contributions."));
+    return;
+  }
+
+  rows.forEach((row) => {
+    const item = document.createElement("article");
+    item.className = "coverage-item";
+    const coveredPercent = row.amount > 0 ? Math.min(100, (row.covered / row.amount) * 100) : 0;
+    const missing = Math.max(0, row.amount - row.covered);
+    const status = missing <= 0
+      ? "Achat compensé"
+      : `${currency.format(missing)} à compenser`;
+
+    item.innerHTML = `
+      <div class="coverage-info">
+        <strong>${escapeHtml(row.title)}</strong>
+        <span>${escapeHtml(row.details)}</span>
+      </div>
+      <div class="coverage-visual" aria-label="${escapeHtml(`${currency.format(row.covered)} compensés sur ${currency.format(row.amount)}`)}">
+        <div class="coverage-track">
+          <span class="coverage-fill" style="width: ${coveredPercent}%"></span>
+        </div>
+        <div class="coverage-values">
+          <span>${currency.format(row.covered)} compensés</span>
+          <strong>${currency.format(row.amount)}</strong>
+        </div>
+      </div>
+      <span class="coverage-status ${missing <= 0 ? "is-covered" : "is-missing"}">${escapeHtml(status)}</span>
+    `;
+    elements.coverageChart.append(item);
+  });
+}
+
 function renderMembers() {
   elements.memberList.innerHTML = "";
 
@@ -603,6 +648,36 @@ function renderMembers() {
       `;
       elements.memberList.append(item);
     });
+}
+
+function getPurchaseCoverageRows() {
+  let contributionPool = 0;
+
+  return state.entries
+    .slice()
+    .sort((a, b) => `${a.date}${a.createdAt}`.localeCompare(`${b.date}${b.createdAt}`))
+    .reduce((rows, entry) => {
+      if (entry.type === "contribution") {
+        contributionPool += Number(entry.amount);
+        return rows;
+      }
+
+      const amount = Number(entry.amount);
+      const covered = Math.min(contributionPool, amount);
+      contributionPool -= covered;
+      rows.push({
+        amount,
+        covered,
+        title: `Achat du ${formatDate(entry.date)}`,
+        details: [
+          findMember(entry.buyerId),
+          entry.pods ? `${entry.pods} dosettes` : "",
+          entry.note,
+        ].filter(Boolean).join(" - "),
+      });
+      return rows;
+    }, [])
+    .reverse();
 }
 
 function renderSelects() {
