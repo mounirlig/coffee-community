@@ -1,5 +1,6 @@
 const STORAGE_KEY = "coffee-community-data-v5";
 const TEAM_STORAGE_KEY = "coffee-community-active-team";
+const PRODUCTION_URL = "https://coffee-community-eight.vercel.app/";
 const SUPABASE_CONFIG = window.COFFEE_COMMUNITY_SUPABASE || {};
 
 const state = {
@@ -274,7 +275,7 @@ async function signIn(email) {
   const { error } = await supabaseClient.auth.signInWithOtp({
     email,
     options: {
-      emailRedirectTo: window.location.origin,
+      emailRedirectTo: getAuthRedirectUrl(),
     },
   });
 
@@ -285,6 +286,14 @@ async function signIn(email) {
   }
 
   elements.authMessage.textContent = "Lien envoyé. Vérifie ta boîte mail.";
+}
+
+function getAuthRedirectUrl() {
+  if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
+    return window.location.origin;
+  }
+
+  return PRODUCTION_URL;
 }
 
 async function loadTeamsAndData() {

@@ -48,3 +48,14 @@ window.COFFEE_COMMUNITY_SUPABASE = {
 ```
 
 Note: la cle publique Supabase reste visible cote client, ce qui est normal. La securite repose sur l'authentification Supabase et les policies RLS par equipe.
+
+### Redirections Auth
+
+Dans Supabase, ouvrir Authentication > URL Configuration et configurer :
+
+- Site URL: `https://coffee-community-eight.vercel.app`
+- Redirect URLs:
+  - `https://coffee-community-eight.vercel.app/**`
+  - `http://localhost:4173/**`
+
+Les emails de connexion doivent rediriger vers la production. Si Supabase garde `http://localhost:3000`, verifier aussi que le template email utilise bien `{{ .ConfirmationURL }}` ou `{{ .RedirectTo }}` et pas une URL localhost codee en dur.
