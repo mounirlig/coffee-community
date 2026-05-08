@@ -58,6 +58,80 @@ button:disabled {
   margin-bottom: 24px;
 }
 
+.brand-block {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.coffee-logo {
+  flex: 0 0 auto;
+  width: clamp(68px, 9vw, 96px);
+  aspect-ratio: 1;
+}
+
+.coffee-logo svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.cup,
+.handle,
+.saucer,
+.steam-line {
+  fill: none;
+  stroke: var(--text);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.cup {
+  stroke-width: 5;
+}
+
+.handle,
+.saucer {
+  stroke-width: 4.5;
+}
+
+.steam-line {
+  stroke: var(--accent-dark);
+  stroke-width: 4;
+  opacity: 0;
+  transform-origin: center;
+  animation: steam-rise 2.8s ease-in-out infinite;
+}
+
+.steam-line-two {
+  animation-delay: 0.35s;
+}
+
+.steam-line-three {
+  animation-delay: 0.7s;
+}
+
+@keyframes steam-rise {
+  0% {
+    opacity: 0;
+    transform: translateY(7px) scaleY(0.82);
+  }
+
+  28% {
+    opacity: 0.85;
+  }
+
+  64% {
+    opacity: 0.45;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateY(-8px) scaleY(1.08);
+  }
+}
+
 .eyebrow {
   margin: 0 0 8px;
   color: var(--accent-dark);
@@ -358,11 +432,15 @@ select:focus {
 }
 
 @media (max-width: 920px) {
-  .topbar,
   .workspace,
   .account-grid {
     display: grid;
     grid-template-columns: 1fr;
+  }
+
+  .topbar {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .summary-grid {
@@ -382,6 +460,16 @@ select:focus {
   .topbar-actions {
     display: grid;
     grid-template-columns: 1fr;
+  }
+
+  .brand-block {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .coffee-logo {
+    width: 76px;
   }
 
   .panel-heading {
