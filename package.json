@@ -1,0 +1,16 @@
+{
+  "name": "coffee-community",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Application web simple pour suivre les contributions aux achats de dosettes de cafe.",
+  "scripts": {
+    "dev": "python3 -m http.server 4173"
+  },
+  "keywords": [
+    "coffee",
+    "community",
+    "vercel",
+    "static"
+  ],
+  "license": "UNLICENSED"
+}

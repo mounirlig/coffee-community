@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Coffee Community</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Coffee Community</p>
+          <h1>Suivi des dosettes de café</h1>
+        </div>
+        <div class="topbar-actions">
+          <button class="ghost-button" id="exportData" type="button" title="Exporter les données">
+            Exporter
+          </button>
+          <label class="ghost-button file-button" title="Importer des données">
+            Importer
+            <input id="importData" type="file" accept="application/json" />
+          </label>
+        </div>
+      </header>
+
+      <section class="summary-grid" aria-label="Résumé">
+        <article class="summary-card">
+          <span>Total collecté</span>
+          <strong id="totalContributions">0,00 EUR</strong>
+        </article>
+        <article class="summary-card">
+          <span>Achats dosettes</span>
+          <strong id="totalPurchases">0,00 EUR</strong>
+        </article>
+        <article class="summary-card">
+          <span>Solde caisse</span>
+          <strong id="cashBalance">0,00 EUR</strong>
+        </article>
+        <article class="summary-card">
+          <span>Membres</span>
+          <strong id="memberCount">0</strong>
+        </article>
+      </section>
+
+      <section class="workspace">
+        <div class="panel">
+          <div class="panel-heading">
+            <h2>Membres</h2>
+          </div>
+          <form class="inline-form" id="memberForm">
+            <label>
+              Nom
+              <input id="memberName" type="text" placeholder="Ex. Sarah" autocomplete="off" required />
+            </label>
+            <button type="submit">Ajouter</button>
+          </form>
+          <div class="member-list" id="memberList"></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-heading">
+            <h2>Nouvelle contribution</h2>
+          </div>
+          <form class="stack-form" id="contributionForm">
+            <label>
+              Membre
+              <select id="contributionMember" required></select>
+            </label>
+            <div class="form-row">
+              <label>
+                Montant
+                <input id="contributionAmount" type="text" inputmode="decimal" placeholder="5,00" required />
+              </label>
+              <label>
+                Date
+                <input id="contributionDate" type="date" required />
+              </label>
+            </div>
+            <label>
+              Note
+              <input id="contributionNote" type="text" placeholder="Ex. participation mensuelle" />
+            </label>
+            <button type="submit">Enregistrer la contribution</button>
+          </form>
+        </div>
+
+        <div class="panel">
+          <div class="panel-heading">
+            <h2>Achat de dosettes</h2>
+          </div>
+          <form class="stack-form" id="purchaseForm">
+            <div class="form-row">
+              <label>
+                Montant
+                <input id="purchaseAmount" type="text" inputmode="decimal" placeholder="24,90" required />
+              </label>
+              <label>
+                Date
+                <input id="purchaseDate" type="date" required />
+              </label>
+            </div>
+            <div class="form-row">
+              <label>
+                Dosettes
+                <input id="purchasePods" type="text" inputmode="numeric" placeholder="100" required />
+              </label>
+              <label>
+                Acheté par
+                <select id="purchaseBuyer" required></select>
+              </label>
+            </div>
+            <label>
+              Note
+              <input id="purchaseNote" type="text" placeholder="Ex. boite mix espresso" />
+            </label>
+            <button type="submit">Enregistrer l'achat</button>
+          </form>
+        </div>
+      </section>
+
+      <section class="panel ledger-panel">
+        <div class="panel-heading">
+          <h2>Historique</h2>
+          <div class="tabs" role="tablist" aria-label="Filtre historique">
+            <button class="tab is-active" type="button" data-filter="all">Tout</button>
+            <button class="tab" type="button" data-filter="contribution">Contributions</button>
+            <button class="tab" type="button" data-filter="purchase">Achats</button>
+          </div>
+        </div>
+        <div class="ledger" id="ledger"></div>
+      </section>
+    </main>
+
+    <template id="emptyStateTemplate">
+      <div class="empty-state">
+        <strong>Aucune donnée pour l'instant.</strong>
+        <span>Ajoute quelques membres puis enregistre les contributions et les achats de café.</span>
+      </div>
+    </template>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
