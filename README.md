@@ -16,7 +16,7 @@ Il peut :
 - rejoindre une equipe existante avec son code equipe ;
 - changer d'equipe via la liste des equipes deja connues par son navigateur.
 
-Chaque equipe possede un `invite_code` genere par Supabase. Ce code est affiche dans le panneau equipe quand une equipe est active. Il suffit de le partager aux autres personnes pour qu'elles puissent rejoindre la meme equipe.
+Chaque equipe possede un `invite_code` genere en base de donnees. Ce code est affiche dans le panneau equipe quand une equipe est active. Il suffit de le partager aux autres personnes pour qu'elles puissent rejoindre la meme equipe.
 
 Le panneau **Equipe** est repliable avec le bouton **Masquer / Afficher**. Son etat est conserve dans le navigateur avec `localStorage`.
 
@@ -93,7 +93,7 @@ L'import est donc une operation de remplacement complet des donnees de l'equipe 
 
 ## Persistance des donnees
 
-Les donnees principales sont synchronisees avec Supabase :
+Les donnees principales sont synchronisees avec le backend configure :
 
 - equipes ;
 - membres ;
@@ -107,7 +107,7 @@ Le navigateur conserve aussi quelques informations locales dans `localStorage` :
 - `coffee-community-team-collapsed` : etat replie/deplie du panneau equipe ;
 - `coffee-community-data-v6` : cache local des membres et mouvements.
 
-Le cache local sert surtout de secours ou de transition d'affichage. La source de verite reste Supabase quand la configuration distante est disponible.
+Le cache local sert surtout de secours ou de transition d'affichage. La source de verite reste le backend distant quand la configuration est disponible.
 
 ## Modele d'acces et securite
 
@@ -122,11 +122,11 @@ Concretement :
 
 Ce modele est adapte a un usage interne simple, base sur la confiance, par exemple une petite equipe qui partage une caisse cafe.
 
-La cle publique Supabase `anonKey` est visible cote client. C'est normal pour une application frontend connectee a Supabase. La securite ne repose pas sur le secret de cette cle, mais sur les regles SQL et les fonctions exposees.
+En mode Supabase, la cle publique `anonKey` est visible cote client. C'est normal pour une application frontend connectee a Supabase. La securite ne repose pas sur le secret de cette cle, mais sur les regles SQL et les fonctions exposees.
 
-Les tables Supabase gardent Row Level Security active pour bloquer l'acces direct depuis le client. L'application passe par des fonctions RPC publiques `security definer` qui limitent les operations au `team_id` ou au `invite_code` fourni.
+L'application passe par des fonctions RPC publiques qui limitent les operations au `team_id` ou au `invite_code` fourni.
 
-Limite importante : sans authentification forte, l'application ne peut pas garantir qu'une personne est bien membre legitime d'une equipe. Pour une isolation stricte par utilisateur, il faudrait remettre une authentification Supabase Auth et des policies RLS basees sur `auth.uid()` et les memberships.
+Limite importante : sans authentification forte, l'application ne peut pas garantir qu'une personne est bien membre legitime d'une equipe. Pour une isolation stricte par utilisateur, il faut ajouter une authentification cote backend.
 
 ## Stack technique
 
@@ -139,7 +139,7 @@ Technologies utilisees :
 - HTML natif dans `index.html` ;
 - CSS natif dans `styles.css` ;
 - JavaScript vanilla dans `app.js` ;
-- Supabase JS charge depuis CDN ;
+- Supabase JS charge depuis CDN (mode Supabase) ;
 - SVG inline pour le logo cafe anime ;
 - animations CSS pour la fumee du logo.
 
@@ -147,16 +147,12 @@ Il n'y a pas de build frontend, pas de bundler, pas de TypeScript et pas de depe
 
 ### Backend et base de donnees
 
-Le backend est fourni par Supabase.
+L'application supporte 2 modes backend :
 
-Supabase fournit :
+- mode `Supabase` via `supabase-config.js` ;
+- mode `PostgreSQL de base` via une API Node `Express + pg` dans `server.js`.
 
-- base PostgreSQL ;
-- fonctions RPC ;
-- Row Level Security ;
-- realtime PostgreSQL changes pour rafraichir les membres et mouvements.
-
-Les fonctions RPC utilisees par l'application sont notamment :
+Dans les 2 modes, le frontend appelle le meme contrat RPC logique :
 
 - `create_coffee_team_public(p_team_name)` ;
 - `join_coffee_team_public(p_invite_code)` ;
@@ -168,6 +164,8 @@ Les fonctions RPC utilisees par l'application sont notamment :
 - `create_coffee_entry_public(...)` ;
 - `delete_coffee_entry_public(p_team_id, p_entry_id)` ;
 - `clear_coffee_team_data_public(p_team_id)`.
+
+Le fichier SQL pour le mode PostgreSQL de base est `postgres-schema-basic.sql`.
 
 ### Deploiement
 
@@ -193,9 +191,14 @@ https://coffee-community-eight.vercel.app/
 |-- styles.css            # Styles, layout responsive et animation du logo
 |-- app.js                # Logique applicative, Supabase, rendu et interactions
 |-- favicon.svg           # Favicon derivee de la tasse du header
+|-- backend-config.js     # Configuration du backend PostgreSQL via API
 |-- supabase-config.js    # URL Supabase et anonKey publique
 |-- supabase-schema.sql   # Schema SQL et fonctions RPC Supabase
+|-- postgres-schema-basic.sql # Schema SQL pour PostgreSQL de base
+|-- server.js             # API Node/Express pour PostgreSQL de base
+|-- .env.example          # Variables d'environnement de l'API
 |-- Dockerfile            # Image Nginx non-root pour Kubernetes
+|-- Dockerfile.api        # Image API Node/pg pour PostgreSQL de base
 |-- nginx.conf            # Configuration Nginx de l'image Docker
 |-- .dockerignore         # Fichiers exclus du contexte Docker
 |-- vercel.json           # Configuration de deploiement Vercel
@@ -229,6 +232,35 @@ Le script npm equivalent est disponible :
 npm run dev
 ```
 
+## Lancer l'API PostgreSQL (mode base postgres classique)
+
+1. Creer une base PostgreSQL vide.
+2. Appliquer le schema `postgres-schema-basic.sql`.
+3. Configurer les variables d'environnement a partir de `.env.example`.
+4. Installer les dependances Node :
+
+```bash
+npm install
+```
+
+5. Demarrer l'API :
+
+```bash
+npm run api
+```
+
+Par defaut l'API ecoute sur `http://localhost:3001`.
+
+6. Mettre a jour `backend-config.js` :
+
+```js
+window.COFFEE_COMMUNITY_BACKEND = {
+  apiUrl: "http://localhost:3001",
+};
+```
+
+Quand `apiUrl` est renseignee, le frontend utilise l'API PostgreSQL et ignore Supabase.
+
 ## Configuration Supabase
 
 La configuration client est dans `supabase-config.js`.
@@ -248,6 +280,8 @@ Pour changer de projet Supabase :
 4. copier la cle publique publishable ou anon ;
 5. remplacer les valeurs dans `supabase-config.js` ;
 6. appliquer le schema contenu dans `supabase-schema.sql` sur le nouveau projet.
+
+Pour repasser en mode Supabase, vider `apiUrl` dans `backend-config.js`.
 
 ## Schema de donnees
 
@@ -286,6 +320,8 @@ Le fichier `vercel.json` contient deja :
 - cache court pour `app.js`, `styles.css` et `supabase-config.js` ;
 - rewrite vers `index.html`.
 
+Le fichier `backend-config.js` doit etre adapte a l'environnement cible (URL de l'API privee).
+
 ## Construire une image Docker
 
 Le repo contient un `Dockerfile` permettant de construire une image OCI fonctionnelle pour un environnement cloud ou Kubernetes.
@@ -299,6 +335,7 @@ L'image utilise :
 - un fallback `try_files` vers `index.html` ;
 - des headers de base, dont `X-Content-Type-Options: nosniff` ;
 - un cache court pour `app.js`, `styles.css` et `supabase-config.js`.
+- un cache court pour `backend-config.js`.
 
 Construire l'image :
 
@@ -381,6 +418,22 @@ docker tag coffee-community:local registry.example.com/coffee-community:latest
 docker push registry.example.com/coffee-community:latest
 ```
 
+### Image API PostgreSQL
+
+Construire l'image de l'API Node :
+
+```bash
+docker build -f Dockerfile.api -t coffee-community-api:local .
+```
+
+Lancer l'API en local :
+
+```bash
+docker run --rm -p 3001:3001 \
+  -e DATABASE_URL="postgresql://postgres:postgres@host.docker.internal:5432/coffee_community" \
+  coffee-community-api:local
+```
+
 ## Verification rapide
 
 Commandes utiles avant de pousser :
@@ -391,7 +444,7 @@ git diff --check
 docker build -t coffee-community:local .
 ```
 
-Pour tester le flux Supabase, verifier dans l'interface :
+Pour tester le flux backend (Supabase ou API PostgreSQL), verifier dans l'interface :
 
 1. creer une equipe ;
 2. copier le code equipe ;

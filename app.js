@@ -3,6 +3,7 @@ const TEAM_STORAGE_KEY = "coffee-community-active-team";
 const TEAMS_STORAGE_KEY = "coffee-community-known-teams";
 const TEAM_COLLAPSED_STORAGE_KEY = "coffee-community-team-collapsed";
 const SUPABASE_CONFIG = window.COFFEE_COMMUNITY_SUPABASE || {};
+const BACKEND_CONFIG = window.COFFEE_COMMUNITY_BACKEND || {};
 
 const state = {
   teams: loadKnownTeams(),
@@ -13,8 +14,8 @@ const state = {
 };
 
 let activeFilter = "all";
-let supabaseClient = null;
-let usingSupabase = false;
+let remoteClient = null;
+let remoteMode = "none";
 let realtimeChannel = null;
 
 const currency = new Intl.NumberFormat("fr-FR", {
@@ -209,23 +210,22 @@ elements.importData.addEventListener("change", async (event) => {
 });
 
 window.addEventListener("focus", () => {
-  if (usingSupabase && state.currentTeamId) {
+  if (remoteClient && state.currentTeamId) {
     loadRemoteData();
   }
 });
 
 async function init() {
-  supabaseClient = createSupabaseClient();
-  usingSupabase = Boolean(supabaseClient);
+  remoteClient = createRemoteClient();
 
-  if (!usingSupabase) {
+  if (!remoteClient) {
     Object.assign(state, loadLocalState());
     setSyncStatus("local", "Stockage local");
     render();
     return;
   }
 
-  setSyncStatus("remote", "Supabase connecté");
+  setSyncStatus("remote", remoteMode === "api" ? "API PostgreSQL connectée" : "Supabase connecté");
   if (state.currentTeamId && !state.teams.some((team) => team.id === state.currentTeamId)) {
     await restoreActiveTeam();
   }
@@ -234,11 +234,32 @@ async function init() {
   render();
 }
 
-function createSupabaseClient() {
+function createRemoteClient() {
+  const apiUrl = String(BACKEND_CONFIG.apiUrl || "").trim().replace(/\/+$/, "");
+  if (apiUrl) {
+    remoteMode = "api";
+    return {
+      rpc: async (name, params) => {
+        const response = await fetch(`${apiUrl}/api/rpc/${name}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(params || {}),
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          return { data: null, error: payload.error || { message: `HTTP ${response.status}` } };
+        }
+        return { data: payload.data, error: payload.error || null };
+      },
+      removeChannel: () => {},
+    };
+  }
+
   const url = String(SUPABASE_CONFIG.url || "").trim();
   const anonKey = String(SUPABASE_CONFIG.anonKey || "").trim();
   if (!url || !anonKey || !window.supabase?.createClient) return null;
 
+  remoteMode = "supabase";
   return window.supabase.createClient(url, anonKey, {
     auth: {
       persistSession: false,
@@ -249,7 +270,7 @@ function createSupabaseClient() {
 }
 
 async function restoreActiveTeam() {
-  const { data, error } = await supabaseClient.rpc("get_coffee_team_public", {
+  const { data, error } = await remoteClient.rpc("get_coffee_team_public", {
     p_team_id: state.currentTeamId,
   });
 
@@ -263,7 +284,7 @@ async function restoreActiveTeam() {
 }
 
 async function loadRemoteData() {
-  if (!usingSupabase || !state.currentTeamId) {
+  if (!remoteClient || !state.currentTeamId) {
     state.members = [];
     state.entries = [];
     render();
@@ -272,8 +293,8 @@ async function loadRemoteData() {
 
   try {
     const [membersResult, entriesResult] = await Promise.all([
-      supabaseClient.rpc("list_coffee_members_public", { p_team_id: state.currentTeamId }),
-      supabaseClient.rpc("list_coffee_entries_public", { p_team_id: state.currentTeamId }),
+      remoteClient.rpc("list_coffee_members_public", { p_team_id: state.currentTeamId }),
+      remoteClient.rpc("list_coffee_entries_public", { p_team_id: state.currentTeamId }),
     ]);
 
     if (membersResult.error) throw membersResult.error;
@@ -286,16 +307,16 @@ async function loadRemoteData() {
     render();
   } catch (error) {
     console.error(error);
-    setSyncStatus("error", "Erreur de synchronisation Supabase");
+    setSyncStatus("error", "Erreur de synchronisation distante");
     render();
   }
 }
 
 function subscribeToRemoteChanges() {
-  if (!usingSupabase || !state.currentTeamId) return;
+  if (remoteMode !== "supabase" || !remoteClient || !state.currentTeamId) return;
 
   unsubscribeFromRemoteChanges();
-  realtimeChannel = supabaseClient
+  realtimeChannel = remoteClient
     .channel(`coffee-community-${state.currentTeamId}`)
     .on("postgres_changes", { event: "*", schema: "public", table: "coffee_members", filter: `team_id=eq.${state.currentTeamId}` }, loadRemoteData)
     .on("postgres_changes", { event: "*", schema: "public", table: "coffee_entries", filter: `team_id=eq.${state.currentTeamId}` }, loadRemoteData)
@@ -304,13 +325,13 @@ function subscribeToRemoteChanges() {
 
 function unsubscribeFromRemoteChanges() {
   if (realtimeChannel) {
-    supabaseClient.removeChannel(realtimeChannel);
+    remoteClient.removeChannel(realtimeChannel);
     realtimeChannel = null;
   }
 }
 
 async function createTeam(name) {
-  if (!usingSupabase) {
+  if (!remoteClient) {
     const team = {
       id: crypto.randomUUID(),
       name,
@@ -325,7 +346,7 @@ async function createTeam(name) {
   }
 
   await runRemoteMutation(async () => {
-    const result = await supabaseClient.rpc("create_coffee_team_public", {
+    const result = await remoteClient.rpc("create_coffee_team_public", {
       p_team_name: name,
     });
     if (result.error) return result;
@@ -339,10 +360,10 @@ async function createTeam(name) {
 }
 
 async function joinTeam(code) {
-  if (!usingSupabase) return;
+  if (!remoteClient) return;
 
   await runRemoteMutation(async () => {
-    const result = await supabaseClient.rpc("join_coffee_team_public", {
+    const result = await remoteClient.rpc("join_coffee_team_public", {
       p_invite_code: code,
     });
     if (result.error) return result;
@@ -356,8 +377,8 @@ async function joinTeam(code) {
 }
 
 async function createMember(name) {
-  if (usingSupabase) {
-    await runRemoteMutation(() => supabaseClient.rpc("create_coffee_member_public", {
+  if (remoteClient) {
+    await runRemoteMutation(() => remoteClient.rpc("create_coffee_member_public", {
       p_team_id: state.currentTeamId,
       p_name: name,
     }));
@@ -374,8 +395,8 @@ async function createMember(name) {
 }
 
 async function deleteMember(id) {
-  if (usingSupabase) {
-    await runRemoteMutation(() => supabaseClient.rpc("delete_coffee_member_public", {
+  if (remoteClient) {
+    await runRemoteMutation(() => remoteClient.rpc("delete_coffee_member_public", {
       p_team_id: state.currentTeamId,
       p_member_id: id,
     }));
@@ -387,8 +408,8 @@ async function deleteMember(id) {
 }
 
 async function createEntry(input) {
-  if (usingSupabase) {
-    await runRemoteMutation(() => supabaseClient.rpc("create_coffee_entry_public", {
+  if (remoteClient) {
+    await runRemoteMutation(() => remoteClient.rpc("create_coffee_entry_public", {
       p_team_id: state.currentTeamId,
       p_type: input.type,
       p_member_id: input.memberId || null,
@@ -417,8 +438,8 @@ async function createEntry(input) {
 }
 
 async function deleteEntry(id) {
-  if (usingSupabase) {
-    await runRemoteMutation(() => supabaseClient.rpc("delete_coffee_entry_public", {
+  if (remoteClient) {
+    await runRemoteMutation(() => remoteClient.rpc("delete_coffee_entry_public", {
       p_team_id: state.currentTeamId,
       p_entry_id: id,
     }));
@@ -430,18 +451,18 @@ async function deleteEntry(id) {
 }
 
 async function replaceAllData(imported) {
-  if (usingSupabase) {
+  if (remoteClient) {
     if (!state.currentTeamId) return;
 
     await runRemoteMutation(async () => {
-      const clearResult = await supabaseClient.rpc("clear_coffee_team_data_public", {
+      const clearResult = await remoteClient.rpc("clear_coffee_team_data_public", {
         p_team_id: state.currentTeamId,
       });
       if (clearResult.error) return clearResult;
 
       const memberIdMap = new Map();
       for (const member of imported.members.map(normalizeImportedMember)) {
-        const result = await supabaseClient.rpc("create_coffee_member_public", {
+        const result = await remoteClient.rpc("create_coffee_member_public", {
           p_team_id: state.currentTeamId,
           p_name: member.name,
         });
@@ -450,7 +471,7 @@ async function replaceAllData(imported) {
       }
 
       for (const entry of imported.entries.map(normalizeImportedEntry)) {
-        const result = await supabaseClient.rpc("create_coffee_entry_public", {
+        const result = await remoteClient.rpc("create_coffee_entry_public", {
           p_team_id: state.currentTeamId,
           p_type: entry.type,
           p_member_id: entry.memberId ? memberIdMap.get(entry.memberId) || null : null,
@@ -480,8 +501,8 @@ async function runRemoteMutation(mutation) {
     await loadRemoteData();
   } catch (error) {
     console.error(error);
-    alert(`La synchronisation Supabase a échoué: ${error.message}`);
-    setSyncStatus("error", "Erreur de synchronisation Supabase");
+    alert(`La synchronisation distante a échoué: ${error.message}`);
+    setSyncStatus("error", "Erreur de synchronisation distante");
   }
 }
 

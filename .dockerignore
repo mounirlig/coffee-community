@@ -1,8 +1,4 @@
 .git
 .vercel
-Dockerfile
-README.md
-supabase-schema.sql
-package.json
-vercel.json
+node_modules
 *.log

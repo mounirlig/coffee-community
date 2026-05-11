@@ -4,7 +4,12 @@
   "private": true,
   "description": "Application web simple pour suivre les contributions aux achats de dosettes de cafe.",
   "scripts": {
-    "dev": "python3 -m http.server 4173"
+    "dev": "python3 -m http.server 4173",
+    "api": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "pg": "^8.13.3"
   },
   "keywords": [
     "coffee",
